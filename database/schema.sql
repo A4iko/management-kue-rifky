@@ -1,0 +1,126 @@
+CREATE DATABASE IF NOT EXISTS management_kue_rifky CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE management_kue_rifky;
+
+CREATE TABLE IF NOT EXISTS customers (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ phone VARCHAR(30) NULL,
+ address TEXT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_customers_phone (phone)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS ingredients (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ category VARCHAR(80) NULL,
+ unit VARCHAR(20) NOT NULL,
+ current_stock DECIMAL(14,3) NOT NULL DEFAULT 0,
+ minimum_stock DECIMAL(14,3) NOT NULL DEFAULT 0,
+ purchase_price DECIMAL(14,2) NOT NULL DEFAULT 0,
+ expiry_date DATE NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_ingredient_name (name),
+ INDEX idx_ingredient_expiry (expiry_date)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS products (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ name VARCHAR(120) NOT NULL,
+ category VARCHAR(80) NULL,
+ selling_price DECIMAL(14,2) NOT NULL DEFAULT 0,
+ is_active TINYINT(1) NOT NULL DEFAULT 1,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_product_name (name)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS product_recipes (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ product_id INT UNSIGNED NOT NULL,
+ ingredient_id INT UNSIGNED NOT NULL,
+ quantity DECIMAL(14,3) NOT NULL,
+ UNIQUE KEY uq_recipe_item (product_id, ingredient_id),
+ CONSTRAINT fk_recipe_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+ CONSTRAINT fk_recipe_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS transactions (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ customer_id INT UNSIGNED NULL,
+ transaction_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ total_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+ payment_method VARCHAR(30) NOT NULL DEFAULT 'cash',
+ notes TEXT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_transaction_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+ INDEX idx_transaction_date (transaction_date)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS transaction_items (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ transaction_id BIGINT UNSIGNED NOT NULL,
+ product_id INT UNSIGNED NOT NULL,
+ quantity DECIMAL(12,3) NOT NULL,
+ unit_price DECIMAL(14,2) NOT NULL,
+ subtotal DECIMAL(14,2) NOT NULL,
+ CONSTRAINT fk_item_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+ CONSTRAINT fk_item_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ ingredient_id INT UNSIGNED NOT NULL,
+ movement_type ENUM('in','out','adjustment') NOT NULL,
+ quantity DECIMAL(14,3) NOT NULL,
+ reference_type VARCHAR(30) NULL,
+ reference_id BIGINT UNSIGNED NULL,
+ notes VARCHAR(255) NULL,
+ movement_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_movement_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE RESTRICT,
+ INDEX idx_movement_date (movement_date),
+ INDEX idx_movement_ingredient_date (ingredient_id,movement_date)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS stock_settings (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ ingredient_id INT UNSIGNED NOT NULL,
+ minimum_stock DECIMAL(14,3) NOT NULL DEFAULT 0,
+ alert_before_expiry_days INT UNSIGNED NOT NULL DEFAULT 7,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ UNIQUE KEY uq_stock_setting_ingredient (ingredient_id),
+ CONSTRAINT fk_setting_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS stock_alerts (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ ingredient_id INT UNSIGNED NOT NULL,
+ alert_type ENUM('low_stock','expiry') NOT NULL,
+ message VARCHAR(255) NOT NULL,
+ status ENUM('active','resolved') NOT NULL DEFAULT 'active',
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ resolved_at DATETIME NULL,
+ CONSTRAINT fk_alert_ingredient FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE,
+ INDEX idx_alert_status (status,created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS users (
+ id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ full_name VARCHAR(120) NOT NULL,
+ username VARCHAR(60) NOT NULL UNIQUE,
+ password_hash VARCHAR(255) NOT NULL,
+ last_login_at DATETIME NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS login_logs (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ user_id INT UNSIGNED NULL,
+ username VARCHAR(60) NOT NULL,
+ login_status ENUM('success','failed') NOT NULL,
+ ip_address VARCHAR(45) NULL,
+ user_agent VARCHAR(255) NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CONSTRAINT fk_login_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
